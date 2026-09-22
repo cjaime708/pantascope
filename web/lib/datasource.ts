@@ -3,13 +3,17 @@
  *
  * The contract is asynchronous so a network-backed proxy can replace the mock
  * with no page rewrites: pages already handle loading, timeout, error, retry,
- * and cancellation. When the /api proxy lands, this file swaps the mock
- * implementation for the proxy one; the DataSource interface does not change.
+ * and cancellation. The live implementation talks to our own /api routes
+ * (server-side Next.js handlers that hold the Panta API key), so the browser
+ * never sees the key.
  */
 import type {
+  ListMarketsResponse,
+  MarketTradesResponse,
   PantaMarket,
   PantaPosition,
   PantaTrade,
+  PositionsResponse,
   PrimaryBuyBuild,
   PrimaryBuyQuote,
   Side,
@@ -207,5 +211,129 @@ const mockSource: DataSource = {
 };
 
 export function getDataSource(): DataSource {
-  return mockSource;
+  return isLiveMode() ? liveSource : mockSource;
 }
+
+/**
+ * "live" switches on only when the build was given a live data mode.
+ * The browser never sees the Panta API key: every call below hits our own
+ * Next.js route handlers, which add the key server-side.
+ */
+export function isLiveMode(): boolean {
+  return process.env.NEXT_PUBLIC_DATA_MODE === "live";
+}
+
+/** Shape of the /api error envelope our route handlers return. */
+interface ApiErrorBody {
+  error?: { code?: string; message?: string };
+}
+
+async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, init);
+  if (res.status === 404) {
+    throw new DataSourceError("NOT_FOUND", `not found: ${path}`);
+  }
+  if (!res.ok) {
+    let message = `request failed with HTTP ${res.status}`;
+    let code: DataSourceErrorCode = "BAD_RESPONSE";
+    try {
+      const body = (await res.json()) as ApiErrorBody;
+      if (body.error?.message) message = body.error.message;
+      const upstream = body.error?.code;
+      if (upstream === "QUOTE_REJECTED") code = "QUOTE_REJECTED";
+      else if (upstream === "BUILD_REJECTED") code = "BUILD_REJECTED";
+    } catch {
+      // keep the default message
+    }
+    throw new DataSourceError(code, message);
+  }
+  return (await res.json()) as T;
+}
+
+const liveSource: DataSource = {
+  info: { name: "live", mode: "live", lastRefreshIso: null },
+
+  async listMarkets(opts) {
+    const body = await guarded(() => apiFetch<ListMarketsResponse>("/api/markets"), opts);
+    liveSource.info.lastRefreshIso = new Date().toISOString();
+    return body.items ?? [];
+  },
+
+  async getMarket(marketId, opts) {
+    try {
+      const m = await guarded(
+        () => apiFetch<PantaMarket>(`/api/markets/${encodeURIComponent(marketId)}`),
+        opts,
+      );
+      liveSource.info.lastRefreshIso = new Date().toISOString();
+      return m;
+    } catch (err) {
+      // 404 means the market simply does not exist; every other error propagates.
+      if (err instanceof DataSourceError && err.code === "NOT_FOUND") return undefined;
+      throw err;
+    }
+  },
+
+  async getTrades(marketId, opts) {
+    const body = await guarded(
+      () => apiFetch<MarketTradesResponse>(`/api/markets/${encodeURIComponent(marketId)}/trades?limit=200`),
+      opts,
+    );
+    liveSource.info.lastRefreshIso = new Date().toISOString();
+    return body.items ?? [];
+  },
+
+  async getPositions(wallet, opts) {
+    if (!wallet.trim()) return [];
+    const body = await guarded(
+      () => apiFetch<PositionsResponse>(`/api/positions?wallet=${encodeURIComponent(wallet.trim())}`),
+      opts,
+    );
+    liveSource.info.lastRefreshIso = new Date().toISOString();
+    return body.positions ?? [];
+  },
+
+  async primaryQuote(input, opts) {
+    try {
+      const q = await guarded(
+        () =>
+          apiFetch<PrimaryBuyQuote>("/api/quote", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              marketId: input.marketId,
+              side: input.side,
+              amountUsdc: input.amountUsdc,
+              wallet: input.wallet,
+              ...(input.userId ? { userId: input.userId } : {}),
+            }),
+          }),
+        opts,
+      );
+      liveSource.info.lastRefreshIso = new Date().toISOString();
+      return q;
+    } catch (err) {
+      if (err instanceof DataSourceError) throw err;
+      wrapWriteError(err, true);
+    }
+  },
+
+  async primaryBuild(quote, wallet, opts) {
+    try {
+      const b = await guarded(
+        () =>
+          apiFetch<PrimaryBuyBuild>("/api/build", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quoteId: quote.quoteId, wallet }),
+          }),
+        opts,
+      );
+      liveSource.info.lastRefreshIso = new Date().toISOString();
+      return b;
+    } catch (err) {
+      if (err instanceof DataSourceError) throw err;
+      wrapWriteError(err, false);
+    }
+  },
+};

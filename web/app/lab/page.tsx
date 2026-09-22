@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DataSourceError, getDataSource } from "../../lib/datasource";
+import { DataSourceError, getDataSource, isLiveMode } from "../../lib/datasource";
 import { formatUsdc, impliedPct } from "../../lib/format";
 import type { PantaMarket, PrimaryBuyBuild, PrimaryBuyQuote, Side } from "../../../src/types";
 
@@ -106,10 +106,11 @@ export default function LabPage() {
       <div className="panel">
         <h2>Paper-trade lab</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          This walks the Panta write pipeline, quote then build, against the mock data
-          source, and stops before any signature. What you see below is exactly what a
-          wallet would be asked to sign: expected shares, fee, slippage inputs, and
-          the unsigned instructions. Nothing here broadcasts or moves funds.
+          This walks the Panta write pipeline, quote then build, against the{" "}
+          {isLiveMode() ? "live" : "mock"} data source, and stops before any
+          signature. What you see below is exactly what a wallet would be asked
+          to sign: expected shares, fee, slippage inputs, and the unsigned
+          instructions. Nothing here broadcasts or moves funds.
         </p>
         {marketsLoading && <p className="muted">Loading quotable markets...</p>}
         {marketsError && <p className="neg">{marketsError}</p>}

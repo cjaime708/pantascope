@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Countdown from "../../../components/Countdown";
 import { PhaseBadge, SideBadge } from "../../../components/badges";
-import { getDataSource } from "../../../lib/datasource";
+import { getDataSource, isLiveMode } from "../../../lib/datasource";
 import { formatDateTime, formatUsdc, impliedPct, shortWallet } from "../../../lib/format";
 
 export default async function MarketPage({ params }: { params: Promise<{ id: string }> }) {
@@ -116,9 +116,9 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
       <div className="panel">
         <h2>Price history</h2>
         <div className="chart-placeholder">
-          Price chart renders here from the public trade tape once the live API proxy is
-          wired. The mock tape above is the exact input the chart will consume: every
-          trade carries side, size, and block time.
+          Price chart renders here from the {isLiveMode() ? "live" : "public mock"} trade
+          tape. The tape above is the exact input the chart will consume: every trade
+          carries side, size, and block time.
         </div>
       </div>
 
