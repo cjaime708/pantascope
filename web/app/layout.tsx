@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import DataBadge from "./data-badge";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
             ))}
           </nav>
-          <span className="env-tag">mock data: live API proxy not yet wired</span>
+          <DataBadge />
         </header>
         <main>{children}</main>
       </body>
