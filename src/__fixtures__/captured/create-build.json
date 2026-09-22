@@ -1,0 +1,9 @@
+{
+  "transaction": "",
+  "buildFingerprint": "sandbox",
+  "expectedEventPda": "TestMarket1111111111111111111111111111111",
+  "recentBlockhash": "SandboxBlockhash11111111111111111111111111111",
+  "lastValidBlockHeight": 0,
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "disclaimer": "Test mode: this response uses sandbox fixtures and does not access Solana mainnet."
+}
