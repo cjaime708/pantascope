@@ -1,0 +1,11 @@
+{
+  "quoteId": "qt_sandbox_test",
+  "marketId": "TestMarket1111111111111111111111111111111",
+  "wallet": "11111111111111111111111111111111",
+  "side": "yes",
+  "amountUsdc": "1.00",
+  "shares": "2.00",
+  "feeUsdc": "0.00",
+  "expiresAt": "2099-01-01T00:00:00Z",
+  "disclaimer": "Test mode: this response uses sandbox fixtures and does not access Solana mainnet."
+}
