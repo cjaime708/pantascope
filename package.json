@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "description": "PantaScope: a prediction-market intelligence terminal on the Panta API (Solana)",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "name": "pantascope",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "screener": "tsx src/screener.ts",
+    "typecheck": "tsc --noEmit",
+    "lab": "tsx src/lab.ts",
+    "contract-tests": "tsx src/contract-tests.ts",
+    "submission:check": "tsx scripts/submission-check.ts"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}
