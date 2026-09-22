@@ -1,0 +1,9 @@
+{
+  "orderId": "ord_sandbox_test",
+  "quoteId": "qt_sandbox_test",
+  "wallet": "11111111111111111111111111111111",
+  "instructions": [],
+  "recentBlockhash": "SandboxBlockhash11111111111111111111111111111",
+  "lastValidBlockHeight": 0,
+  "disclaimer": "Test mode: this response uses sandbox fixtures and does not access Solana mainnet."
+}
