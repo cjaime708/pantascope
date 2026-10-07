@@ -228,8 +228,27 @@ interface ApiErrorBody {
   error?: { code?: string; message?: string };
 }
 
+/**
+ * Resolve an /api path to an absolute URL when running on the server.
+ * Server Components cannot fetch() relative URLs (nothing to resolve them
+ * against), so the market detail page crashed with "Failed to parse URL"
+ * the moment it tried its server-side data load. In the browser, relative
+ * paths are fine and stay as-is. On Render, RENDER_EXTERNAL_URL is set by
+ * the platform; NEXT_PUBLIC_SITE_URL overrides it when present; local dev
+ * falls back to localhost:3000.
+ */
+function apiUrl(path: string): string {
+  if (typeof window !== "undefined") return path;
+  const base = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+  return `${base}${path}`;
+}
+
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, init);
+  const res = await fetch(apiUrl(path), init);
   if (res.status === 404) {
     throw new DataSourceError("NOT_FOUND", `not found: ${path}`);
   }
