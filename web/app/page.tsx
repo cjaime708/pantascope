@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DataSourceError, getDataSource } from "../lib/datasource";
 import { formatUsdc, impliedPct } from "../lib/format";
 import { PhaseBadge } from "../components/badges";
@@ -53,6 +53,49 @@ export default function ScreenerPage() {
       controller.abort();
     };
   }, []);
+
+  // The Panta list endpoint returns blank titles for most markets, while the
+  // detail endpoint has the real title. Backfill missing titles in the
+  // background (4 at a time) so the table reads properly; rows keep the raw
+  // market ID as fallback if a detail fetch fails.
+  const backfillStarted = useRef(false);
+  const [titlesLoading, setTitlesLoading] = useState(false);
+  useEffect(() => {
+    if (!markets || backfillStarted.current) return;
+    const missing = markets.filter((m) => !m.title.trim());
+    if (missing.length === 0) return;
+    backfillStarted.current = true;
+    setTitlesLoading(true);
+    let cancelled = false;
+    const ds = getDataSource();
+    const queue = [...missing];
+    const worker = async () => {
+      while (queue.length > 0 && !cancelled) {
+        const m = queue.shift()!;
+        try {
+          const full = await ds.getMarket(m.marketId, { timeoutMs: 15_000 });
+          const title = full?.title?.trim();
+          if (!cancelled && title) {
+            setMarkets((prev) =>
+              prev
+                ? prev.map((x) =>
+                    x.marketId === m.marketId ? { ...x, title } : x
+                  )
+                : prev
+            );
+          }
+        } catch {
+          // keep the market ID fallback for this row
+        }
+      }
+    };
+    Promise.all([worker(), worker(), worker(), worker()]).then(() => {
+      if (!cancelled) setTitlesLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [markets]);
 
   const categories = useMemo(
     () => Array.from(new Set((markets ?? []).map((m) => m.category))).sort(),
@@ -148,6 +191,7 @@ export default function ScreenerPage() {
               </label>
               <span className="muted" style={{ marginLeft: "auto" }}>
                 {rows.length} markets
+                {titlesLoading ? " · loading titles…" : ""}
               </span>
             </div>
             <table className="data">
@@ -170,7 +214,17 @@ export default function ScreenerPage() {
                 {rows.map((m) => (
                   <tr key={m.marketId}>
                     <td>
-                      <Link href={`/market/${m.marketId}`}>{m.title}</Link>
+                      {m.title.trim() ? (
+                        <Link href={`/market/${m.marketId}`}>{m.title}</Link>
+                      ) : (
+                        <Link
+                          href={`/market/${m.marketId}`}
+                          className="muted"
+                          style={{ fontStyle: "italic" }}
+                        >
+                          Untitled market
+                        </Link>
+                      )}
                       <div className="muted" style={{ fontSize: 11 }}>
                         {m.marketId}
                       </div>
