@@ -7,7 +7,7 @@ export async function GET(req: Request) {
     query: listMarketsQuery(url.searchParams),
     signal: req.signal,
   });
-  if ((out as PantaUpstreamError).status !== undefined) {
+  if (typeof (out as PantaUpstreamError).status === "number") { // numeric status = upstream error; success payloads never carry one
     return jsonError(out as PantaUpstreamError);
   }
   return Response.json(out, { headers: { "Cache-Control": "s-maxage=20, stale-while-revalidate=60" } });
