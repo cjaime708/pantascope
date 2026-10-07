@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     },
     signal: req.signal,
   });
-  if ((out as PantaUpstreamError).status !== undefined) {
+  if (typeof (out as PantaUpstreamError).status === "number") { // numeric status = upstream error; success payloads never carry one
     const err = out as PantaUpstreamError;
     if (err.status === 400 || err.status === 404 || err.status === 422) {
       return Response.json(
