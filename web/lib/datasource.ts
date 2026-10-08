@@ -44,6 +44,16 @@ export interface DataSourceOptions {
   retryAttempts?: number;
   /** Delay between retries in ms. Default 500. */
   retryDelayMs?: number;
+  /** Page size for listMarkets. Default is the upstream default (20). */
+  limit?: number;
+  /** Opaque cursor for the next page; null/undefined starts at the first page. */
+  cursor?: string | null;
+}
+
+export interface MarketsPage {
+  items: PantaMarket[];
+  /** Opaque cursor for the next page; null when exhausted. */
+  nextCursor: string | null;
 }
 
 export type DataSourceErrorCode =
@@ -80,6 +90,8 @@ export interface PrimaryQuoteInput {
 export interface DataSource {
   readonly info: DataSourceInfo;
   listMarkets(opts?: DataSourceOptions): Promise<PantaMarket[]>;
+  /** Paged market listing; honors opts.limit and opts.cursor. */
+  listMarketsPage(opts?: DataSourceOptions): Promise<MarketsPage>;
   getMarket(marketId: string, opts?: DataSourceOptions): Promise<PantaMarket | undefined>;
   getTrades(marketId: string, opts?: DataSourceOptions): Promise<PantaTrade[]>;
   getPositions(wallet: string, opts?: DataSourceOptions): Promise<PantaPosition[]>;
@@ -164,6 +176,18 @@ const mockSource: DataSource = {
     const rows = await guarded(() => [...MOCK_MARKETS], opts);
     mockSource.info.lastRefreshIso = new Date().toISOString();
     return rows;
+  },
+
+  async listMarketsPage(opts) {
+    const page = await guarded(() => {
+      const limit = opts?.limit ?? MOCK_MARKETS.length;
+      const start = opts?.cursor ? parseInt(opts.cursor, 10) || 0 : 0;
+      const items = MOCK_MARKETS.slice(start, start + limit);
+      const next = start + limit < MOCK_MARKETS.length ? String(start + limit) : null;
+      return { items: [...items], nextCursor: next };
+    }, opts);
+    mockSource.info.lastRefreshIso = new Date().toISOString();
+    return page;
   },
 
   async getMarket(marketId, opts) {
@@ -276,6 +300,19 @@ const liveSource: DataSource = {
     const body = await guarded(() => apiFetch<ListMarketsResponse>("/api/markets"), opts);
     liveSource.info.lastRefreshIso = new Date().toISOString();
     return body.items ?? [];
+  },
+
+  async listMarketsPage(opts) {
+    const q = new URLSearchParams();
+    if (opts?.limit) q.set("limit", String(opts.limit));
+    if (opts?.cursor) q.set("cursor", opts.cursor);
+    const qs = q.toString();
+    const body = await guarded(
+      () => apiFetch<ListMarketsResponse>(`/api/markets${qs ? `?${qs}` : ""}`),
+      opts,
+    );
+    liveSource.info.lastRefreshIso = new Date().toISOString();
+    return { items: body.items ?? [], nextCursor: body.nextCursor ?? null };
   },
 
   async getMarket(marketId, opts) {
