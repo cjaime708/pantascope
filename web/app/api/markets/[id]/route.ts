@@ -17,5 +17,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }
     return jsonError(err);
   }
-  return Response.json(out, { headers: { "Cache-Control": "s-maxage=20, stale-while-revalidate=60" } });
+  // Secondary prices arrive in 10^9-scaled raw units ("516847710" = 0.51684771).
+  // Normalize to 0-1 probabilities so formatters render real percentages.
+  const m = out as PantaMarket;
+  m.secondaryYesPrice = normPrice(m.secondaryYesPrice);
+  m.secondaryNoPrice = normPrice(m.secondaryNoPrice);
+  return Response.json(m, { headers: { "Cache-Control": "s-maxage=20, stale-while-revalidate=60" } });
+}
+
+/** "516847710" (10^9-scaled) -> "0.51684771". Passes through null and already-scaled values. */
+function normPrice(v: string | null): string | null {
+  if (v === null || v === "") return v;
+  const n = parseFloat(v);
+  if (Number.isNaN(n)) return v;
+  if (n <= 1) return v; // already a 0-1 probability
+  return String(n / 1e9);
 }
