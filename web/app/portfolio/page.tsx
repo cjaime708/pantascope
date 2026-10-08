@@ -108,7 +108,17 @@ export default function PortfolioPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setSubmitted(wallet.trim());
+            const v = wallet.trim();
+            // Solana addresses are 32-44 base58 characters. Reject obvious
+            // non-addresses client-side instead of firing a doomed request and
+            // surfacing the raw upstream 400.
+            if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v)) {
+              setRows([]);
+              setSubmitted(null);
+              setError("That doesn't look like a Solana wallet address.");
+              return;
+            }
+            setSubmitted(v);
           }}
           style={{ display: "flex", gap: 8 }}
         >
@@ -146,7 +156,7 @@ export default function PortfolioPage() {
                   </span>
                 </p>
               )}
-              <table className="data">
+              <div className="table-wrap"><table className="data">
                 <thead>
                   <tr>
                     <th>Market</th>
@@ -189,7 +199,7 @@ export default function PortfolioPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <p className="muted" style={{ marginBottom: 0 }}>
                 Estimated portfolio value:{" "}
                 <span className="pos">{formatUsdc(totalMtm)} USDC</span> (open positions
@@ -198,7 +208,7 @@ export default function PortfolioPage() {
               {claimedRows.length > 0 && (
                 <>
                   <h2 style={{ marginTop: 24 }}>Claimed payouts (realized)</h2>
-                  <table className="data">
+                  <div className="table-wrap"><table className="data">
                     <thead>
                       <tr>
                         <th>Market</th>
@@ -227,7 +237,7 @@ export default function PortfolioPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                   <p className="muted" style={{ marginBottom: 0 }}>
                     Already claimed: <span className="pos">{formatUsdc(totalClaimed)} USDC</span>{" "}
                     paid out, not counted in the estimated value above.
