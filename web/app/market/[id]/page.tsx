@@ -69,7 +69,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
       <div className="grid-2">
         <div className="panel">
           <h2>Spot prices: primary vs secondary</h2>
-          <table className="data">
+          <div className="table-wrap"><table className="data">
             <thead>
               <tr>
                 <th>Venue</th>
@@ -82,7 +82,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
               {priceRow("Secondary (order book)", market.secondaryYesPrice, market.secondaryNoPrice)}
               {priceRow("Spot", market.yesPrice, market.noPrice)}
             </tbody>
-          </table>
+          </table></div>
           <p className="muted" style={{ fontSize: 11, marginBottom: 0 }}>
             The catalog leaves prices empty until the detail call fills them from on-chain
             state. A gap between primary and secondary is where edge lives.
@@ -128,7 +128,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
           {tape.length === 0 ? (
             <p className="muted">No trades on the tape for this market yet.</p>
           ) : (
-            <table className="data">
+            <div className="table-wrap"><table className="data">
               <thead>
                 <tr>
                   <th>Wallet</th>
@@ -156,7 +156,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 
@@ -165,7 +165,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
           {whales.length === 0 ? (
             <p className="muted">Nothing large enough to flag yet.</p>
           ) : (
-            <table className="data">
+            <div className="table-wrap"><table className="data">
               <thead>
                 <tr>
                   <th>Wallet</th>
@@ -184,7 +184,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
           <p className="muted" style={{ fontSize: 11 }}>
             Largest single prints on the tape. Whales moving early often know something;
