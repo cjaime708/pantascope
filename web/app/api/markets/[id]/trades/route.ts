@@ -15,5 +15,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }
     return jsonError(err);
   }
-  return Response.json(out, { headers: { "Cache-Control": "s-maxage=20, stale-while-revalidate=60" } });
+  // Trade amounts arrive in micro-USDC base units (10^6). Normalize to USDC
+  // here so every consumer renders human-scale values.
+  const body = out as MarketTradesResponse;
+  for (const t of body.items ?? []) {
+    t.yesAmount = normAmount(t.yesAmount);
+    t.noAmount = normAmount(t.noAmount);
+    t.feePaid = normAmount(t.feePaid);
+  }
+  return Response.json(body, { headers: { "Cache-Control": "s-maxage=20, stale-while-revalidate=60" } });
+}
+
+/** "109107348" or 109107348 (micro-USDC) -> "109.107348" (USDC). */
+function normAmount(v: string | number): string {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (Number.isNaN(n)) return String(v);
+  return String(n / 1e6);
 }
