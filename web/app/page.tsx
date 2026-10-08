@@ -23,7 +23,9 @@ function yesOf(m: PantaMarket): number {
 
 export default function ScreenerPage() {
   const [markets, setMarkets] = useState<PantaMarket[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("volume");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -36,10 +38,11 @@ export default function ScreenerPage() {
     setLoading(true);
     setError(null);
     getDataSource()
-      .listMarkets({ signal: controller.signal, timeoutMs: 15_000, retryAttempts: 2 })
-      .then((rows) => {
+      .listMarketsPage({ signal: controller.signal, timeoutMs: 15_000, retryAttempts: 2, limit: 50 })
+      .then((page) => {
         if (!cancelled) {
-          setMarkets(rows);
+          setMarkets(page.items);
+          setNextCursor(page.nextCursor);
           setLoading(false);
         }
       })
@@ -54,17 +57,44 @@ export default function ScreenerPage() {
     };
   }, []);
 
-  // The Panta list endpoint returns blank titles for most markets, while the
-  // detail endpoint has the real title. Backfill missing titles in the
-  // background (4 at a time) so the table reads properly; rows keep the raw
-  // market ID as fallback if a detail fetch fails.
-  const backfillStarted = useRef(false);
+  const loadMore = () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    setError(null);
+    getDataSource()
+      .listMarketsPage({ timeoutMs: 15_000, retryAttempts: 2, limit: 50, cursor: nextCursor })
+      .then((page) => {
+        setMarkets((prev) => {
+          const seen = new Set((prev ?? []).map((m) => m.marketId));
+          const fresh = page.items.filter((m) => !seen.has(m.marketId));
+          return [...(prev ?? []), ...fresh];
+        });
+        setNextCursor(page.nextCursor);
+        setLoadingMore(false);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : "Failed to load more markets.");
+        setLoadingMore(false);
+      });
+  };
+
+  // The Panta list endpoint returns blank titles and zeroed stats for most
+  // markets, while the detail endpoint has the real values. Backfill missing
+  // titles and stats in the background (4 at a time) so the table reads
+  // properly and volume sort works; rows keep the list values as fallback if
+  // a detail fetch fails. Tracks processed IDs so later pages get backfilled
+  // too when "load more" appends them.
+  const backfilledIds = useRef(new Set<string>());
   const [titlesLoading, setTitlesLoading] = useState(false);
   useEffect(() => {
-    if (!markets || backfillStarted.current) return;
-    const missing = markets.filter((m) => !m.title.trim());
+    if (!markets) return;
+    const missing = markets.filter(
+      (m) =>
+        !backfilledIds.current.has(m.marketId) &&
+        (!m.title.trim() || parseFloat(m.volumeUsdc) === 0 || m.yesPrice == null)
+    );
     if (missing.length === 0) return;
-    backfillStarted.current = true;
+    for (const m of missing) backfilledIds.current.add(m.marketId);
     setTitlesLoading(true);
     let cancelled = false;
     const ds = getDataSource();
@@ -74,18 +104,29 @@ export default function ScreenerPage() {
         const m = queue.shift()!;
         try {
           const full = await ds.getMarket(m.marketId, { timeoutMs: 15_000 });
-          const title = full?.title?.trim();
-          if (!cancelled && title) {
+          if (!cancelled && full) {
             setMarkets((prev) =>
               prev
                 ? prev.map((x) =>
-                    x.marketId === m.marketId ? { ...x, title } : x
+                    x.marketId === m.marketId
+                      ? {
+                          ...x,
+                          title: full.title?.trim() ? full.title : x.title,
+                          volumeUsdc: full.volumeUsdc && parseFloat(full.volumeUsdc) > 0 ? full.volumeUsdc : x.volumeUsdc,
+                          yesPrice: full.yesPrice ?? x.yesPrice,
+                          noPrice: full.noPrice ?? x.noPrice,
+                          primaryYesPrice: full.primaryYesPrice ?? x.primaryYesPrice,
+                          primaryNoPrice: full.primaryNoPrice ?? x.primaryNoPrice,
+                          secondaryYesPrice: full.secondaryYesPrice ?? x.secondaryYesPrice,
+                          secondaryNoPrice: full.secondaryNoPrice ?? x.secondaryNoPrice,
+                        }
+                      : x
                   )
                 : prev
             );
           }
         } catch {
-          // keep the market ID fallback for this row
+          // keep the list values as fallback for this row
         }
       }
     };
@@ -191,10 +232,10 @@ export default function ScreenerPage() {
               </label>
               <span className="muted" style={{ marginLeft: "auto" }}>
                 {rows.length} markets
-                {titlesLoading ? " · loading titles…" : ""}
+                {titlesLoading ? " · filling in details…" : ""}
               </span>
             </div>
-            <table className="data">
+            <div className="table-wrap"><table className="data">
               <thead>
                 <tr>
                   <th className="sortable" onClick={() => toggle("title")}>
@@ -238,7 +279,20 @@ export default function ScreenerPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+              {nextCursor ? (
+                <button type="button" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? "Loading…" : "Load more markets"}
+                </button>
+              ) : (
+                markets !== null && !loading && (
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Showing all {markets.length} markets
+                  </span>
+                )
+              )}
+            </div>
           </>
         )}
       </div>
