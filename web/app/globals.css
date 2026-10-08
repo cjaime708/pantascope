@@ -394,3 +394,7 @@ pre.dump {
   margin-bottom: 0;
   min-width: 180px;
 }
+
+.table-wrap {
+  overflow-x: auto;
+}
